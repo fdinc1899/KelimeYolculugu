@@ -1,0 +1,58 @@
+name: Kelime Yolculugu APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dosyalari al
+        uses: actions/checkout@v4
+
+      - name: ZIP dosyasini bul ve ac
+        run: |
+          ZIP=$(find . -maxdepth 1 -type f -name "*.zip" | head -1)
+          echo "ZIP: $ZIP"
+          test -n "$ZIP"
+          mkdir android-project
+          unzip -q "$ZIP" -d android-project
+          echo "Proje dosyalari:"
+          find android-project -maxdepth 3 -type f
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v3
+
+      - name: APK derle
+        run: |
+          cd android-project
+          PROJECT=$(find . -name settings.gradle -printf '%h\n' | head -1)
+          test -n "$PROJECT"
+          cd "$PROJECT"
+          chmod +x gradlew 2>/dev/null || true
+          if [ -f gradlew ]; then
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
+
+      - name: APK dosyasini bul
+        run: |
+          APK=$(find android-project -type f -name "*debug*.apk" | head -1)
+          test -n "$APK"
+          cp "$APK" KelimeYolculugu.apk
+
+      - name: APK'yi indirilebilir yap
+        uses: actions/upload-artifact@v4
+        with:
+          name: KelimeYolculugu-APK
+          path: KelimeYolculugu.apk
