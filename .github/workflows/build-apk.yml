@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Projeyi al
+        uses: actions/checkout@v4
+
+      - name: ZIP dosyasini bul ve ac
+        shell: bash
+        run: |
+          set -e
+          ZIP="$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)"
+          if [ -z "$ZIP" ]; then
+            echo "ZIP dosyasi bulunamadi."
+            exit 1
+          fi
+          mkdir -p project
+          unzip -q "$ZIP" -d project
+          echo "ZIP acildi: $ZIP"
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: APK olustur
+        shell: bash
+        run: |
+          set -e
+          cd project
+          ROOT="$(find . -type f -name settings.gradle -printf '%h\n' | head -n 1)"
+          if [ -z "$ROOT" ]; then
+            ROOT="$(find . -type f -name settings.gradle.kts -printf '%h\n' | head -n 1)"
+          fi
+          if [ -z "$ROOT" ]; then
+            echo "Android projesi bulunamadi."
+            find . -maxdepth 4 -type f | sort | head -200
+            exit 1
+          fi
+          cd "$ROOT"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: APK dosyasini yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: KelimeYolculugu-APK
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
